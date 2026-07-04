@@ -1,6 +1,5 @@
 // app/admin/page.tsx
 import Link from "next/link";
-import "./globals.css";
 import { ClipboardList, QrCode, Table2, Utensils } from "lucide-react";
 
 const adminTools = [

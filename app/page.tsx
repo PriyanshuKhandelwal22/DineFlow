@@ -1176,7 +1176,17 @@ function DineFlowApp() {
                         className="bg-white border border-amber-100 rounded-3xl p-3.5 shadow-xs hover:shadow-md transition-all flex gap-3.5 relative cursor-pointer group"
                       >
                         <div className="w-24 h-24 rounded-2xl bg-slate-100 overflow-hidden flex-shrink-0 relative">
-                          <img src={item.image} className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300" alt={item.name} />
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              className="w-full h-full object-cover"
+                              alt={item.name}
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-slate-200 flex items-center justify-center text-xs text-slate-500">
+                              No image
+                            </div>
+                          )}
                           <span className="absolute bottom-1 right-1 bg-black/70 backdrop-blur-md text-white text-[9px] px-1.5 py-0.5 rounded-md font-bold flex items-center gap-0.5">
                             ⭐ {item.rating}
                           </span>
@@ -1326,7 +1336,17 @@ function DineFlowApp() {
                   <div className="bg-white rounded-3xl border border-amber-100/60 shadow-xs p-3 divide-y divide-amber-50">
                     {cart.map((item) => (
                       <div key={item.id} className="py-3 flex gap-3 first:pt-0 last:pb-0">
-                        <img src={item.image} className="w-16 h-16 rounded-xl object-cover" alt={item.name} />
+                        {item.image ? (
+                          <img
+                            src={item.image}
+                            className="w-full h-full object-cover"
+                            alt={item.name}
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-slate-200 flex items-center justify-center text-xs text-slate-500">
+                            No image
+                          </div>
+                        )}
                         <div className="flex-1 flex flex-col justify-between">
                           <div>
                             <div className="flex justify-between items-start">
