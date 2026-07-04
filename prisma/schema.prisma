@@ -1,0 +1,104 @@
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model MenuItem {
+  id              String      @id
+  name            String
+  category        String
+  description     String
+  price           Float
+  rating          Float
+  reviews         Int
+  type            String
+  prepTime        String
+  calories        String
+  protein         String
+  spice           String
+  image           String
+  popular         Boolean     @default(false)
+  chefRecommend   Boolean     @default(false)
+  available       Boolean     @default(true)
+  recommendReason String?
+  ingredients     String[]
+  orderItems      OrderItem[]
+}
+
+model Order {
+  id             String        @id @default(uuid())
+  tableNumber    String
+  restaurantSlug String        @default("demo")
+  sessionId      String?
+  session        TableSession? @relation(fields: [sessionId], references: [id])
+  notes          String?
+  subtotal       Float
+  gst            Float
+  grandTotal     Float
+  priority       String        @default("Normal")
+  prepStage      Int           @default(0)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  items          OrderItem[]
+  alerts         StaffAlert[]
+}
+model TableSession {
+  id             String   @id @default(uuid())
+  restaurantSlug String
+  tableNumber    String
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  orders         Order[]
+}
+model RestaurantTable {
+  id             String   @id @default(uuid())
+
+  // Keeps tables scoped per restaurant, so later multi-restaurant admin works.
+  restaurantSlug String   @default("demo")
+
+  // Stored as String because table IDs can be "A1", "Patio-2", etc.
+  tableNumber    String
+
+  // Optional friendly name for admins, like "Window Booth" or "Patio".
+  label          String?
+
+  // Useful for floor/table planning later.
+  seats          Int      @default(2)
+
+  // Soft-disable tables instead of deleting them, preserving order/session history.
+  active         Boolean  @default(true)
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Prevents duplicate table numbers inside the same restaurant.
+  @@unique([restaurantSlug, tableNumber])
+
+  // Speeds up admin lookups by restaurant.
+  @@index([restaurantSlug])
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
+  quantity   Int
+  prepped    Boolean  @default(false)
+}
+
+model StaffAlert {
+  id        String   @id @default(uuid())
+  orderId   String?
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  table     String
+  reason    String
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
