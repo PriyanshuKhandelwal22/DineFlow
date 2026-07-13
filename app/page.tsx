@@ -429,7 +429,6 @@ function DineFlowApp() {
   } = useCart();
 
   // Unified persistent database states simulated in runtime memory
-  const [role, setRole] = useState<'customer' | 'kitchen'>('customer');
   const [placedOrders, setPlacedOrders] = useState<KdsOrder[]>([]);
   const fetchOrdersFromDatabase = async () => {
   try {
@@ -439,22 +438,10 @@ function DineFlowApp() {
     const orders = await response.json();
     setPlacedOrders(orders);
   } catch (error) {
-    console.error("Failed to sync KDS orders:", error);
+    console.error("Failed to sync orders:", error);
   }
   };
 
-  const fetchAlertsFromDatabase = async () => {
-  try {
-    const response = await fetch("/api/alerts", { cache: "no-store" });
-    if (!response.ok) return;
-
-    const alerts = await response.json();
-    setActiveAlerts(alerts);
-  } catch (error) {
-    console.error("Failed to sync staff alerts:", error);
-  }
-};
-  const [activeAlerts, setActiveAlerts] = useState<StaffAlert[]>([]);
   const [menuItems, setMenuItems] = useState<any[]>(FALLBACK_MENU_ITEMS);
   const [activeTableNumber, setActiveTableNumber] = useState<string>("12");
   const [activeRestaurantSlug, setActiveRestaurantSlug] = useState<string>("demo");
@@ -471,9 +458,6 @@ function DineFlowApp() {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-
-  // KDS filter states
-  const [kdsFilter, setKdsFilter] = useState<'all' | 'active' | 'completed' | 'rush'>('active');
 
   // Modals & triggers
   const [detailedDish, setDetailedDish] = useState<any | null>(null);
@@ -558,56 +542,11 @@ function DineFlowApp() {
 
   createOrReuseSession();
 }, [activeRestaurantSlug, activeTableNumber]);
-  const playKitchenBell = () => {
-    try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-
-      osc1.type = 'sine';
-      osc2.type = 'sine';
-      osc1.frequency.setValueAtTime(987.77, ctx.currentTime); // B5 note
-      osc2.frequency.setValueAtTime(1318.51, ctx.currentTime); // E6 note
-
-      gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-
-      osc1.connect(gainNode);
-      osc2.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      osc1.start();
-      osc2.start();
-      osc1.stop(ctx.currentTime + 0.8);
-      osc2.stop(ctx.currentTime + 0.8);
-    } catch (e) {
-      console.log("AudioContext blocked or not supported by client environment.", e);
-    }
-  };
-
   useEffect(() => {
-    if (placedOrders.length > 0) {
-      playKitchenBell();
-    }
-  }, [placedOrders.length]);
-
-  useEffect(() => {
-  fetchOrdersFromDatabase();
-  fetchAlertsFromDatabase();
-
-  if (role !== "kitchen") return;
-
-  const interval = window.setInterval(() => {
     fetchOrdersFromDatabase();
-    fetchAlertsFromDatabase();
-  }, 2000);
-
-  return () => window.clearInterval(interval);
-}, [role]);
+    const interval = window.setInterval(fetchOrdersFromDatabase, 5000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   const latestCustomerOrder = useMemo(() => {
   if (latestSubmittedOrderId) {
@@ -725,40 +664,56 @@ function DineFlowApp() {
     setLatestSubmittedOrderId(savedOrderId);
     setPlacedOrders((prev) => [mockOrderTicket, ...prev]);
     fetchOrdersFromDatabase();
+
+    try {
+      const channel = new BroadcastChannel("dineflow-kds");
+      channel.postMessage({ type: "NEW_ORDER" });
+      channel.close();
+    } catch (e) {
+      // Ignore BroadcastChannel errors in environments where it's not supported
+    }
+
     clearCart();
     setCurrentScreen('confirmed');
   };
 
   const handleWaiterSubmit = async () => {
-  setWaiterSubmitting(true);
+    setWaiterSubmitting(true);
 
-  try {
-    const response = await fetch("/api/alerts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        table: activeTableNumber,
-        reason: waiterReason,
-      }),
-    });
+    try {
+      const response = await fetch("/api/alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          table: activeTableNumber,
+          reason: waiterReason,
+        }),
+      });
 
-    if (!response.ok) throw new Error("Failed to create staff alert");
+      if (!response.ok) throw new Error("Failed to create staff alert");
 
-    const savedAlert = await response.json();
+      await response.json();
 
-    setActiveAlerts(prev => [savedAlert, ...prev]);
-    setWaiterSubmitting(false);
-    setWaiterSuccess(true);
+      try {
+        const channel = new BroadcastChannel("dineflow-kds");
+        channel.postMessage({ type: "NEW_ALERT" });
+        channel.close();
+      } catch (e) {
+        // Ignore BroadcastChannel errors
+      }
 
-    setTimeout(() => {
-      setWaiterSuccess(false);
-      setWaiterModalOpen(false);
-    }, 2500);
-  } catch (error) {
-    console.error("Failed to submit waiter alert:", error);
-    setWaiterSubmitting(false);
-  }
-};
+      setWaiterSubmitting(false);
+      setWaiterSuccess(true);
+
+      setTimeout(() => {
+        setWaiterSuccess(false);
+        setWaiterModalOpen(false);
+      }, 2500);
+    } catch (error) {
+      console.error("Failed to submit waiter alert:", error);
+      setWaiterSubmitting(false);
+    }
+  };
 
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -782,110 +737,7 @@ function DineFlowApp() {
     }, 3500);
   };
 
-  const advanceKdsStage = async (orderId: string) => {
-  const targetOrder = placedOrders.find(order => order.id === orderId);
-  if (!targetOrder) return;
 
-  const nextStage = Math.min(targetOrder.prepStage + 1, 3);
-
-  try {
-    const response = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId,
-        prepStage: nextStage,
-      }),
-    });
-
-    if (!response.ok) throw new Error("Failed to update order stage");
-
-    const updatedOrder = await response.json();
-
-    setPlacedOrders(prev =>
-      prev.map(order => order.id === orderId ? updatedOrder : order)
-    );
-  } catch (error) {
-    console.error("Failed to advance KDS stage:", error);
-  }
-};
-
-  const dismissKdsOrder = async (orderId: string) => {
-  try {
-    const response = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId,
-        prepStage: 4,
-      }),
-    });
-
-    if (!response.ok) throw new Error("Failed to archive order");
-
-    setPlacedOrders(prev => prev.filter(order => order.id !== orderId));
-  } catch (error) {
-    console.error("Failed to archive KDS order:", error);
-  }
-};
-
-  const resolveAlert = async (alertId: string) => {
-  try {
-    const response = await fetch("/api/alerts", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        alertId,
-        resolved: true,
-      }),
-    });
-
-    if (!response.ok) throw new Error("Failed to resolve alert");
-
-    setActiveAlerts(prev => prev.filter(alert => alert.id !== alertId));
-  } catch (error) {
-    console.error("Failed to resolve alert:", error);
-  }
-};
-
-  const toggleKdsItemPrepped = async (orderId: string, itemKey: string) => {
-  const targetOrder = placedOrders.find(order => order.id === orderId);
-  if (!targetOrder) return;
-
-  const nextValue = !targetOrder.completedDishes[itemKey];
-
-  try {
-    const response = await fetch("/api/orders", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        orderId,
-        itemKey,
-        prepped: nextValue,
-      }),
-    });
-
-    if (!response.ok) throw new Error("Failed to update dish checklist");
-
-    const updatedOrder = await response.json();
-
-    setPlacedOrders(prev =>
-      prev.map(order => order.id === orderId ? updatedOrder : order)
-    );
-  } catch (error) {
-    console.error("Failed to update KDS item:", error);
-  }
-};
-
-  const filteredKdsOrders = useMemo(() => {
-    return placedOrders.filter(order => {
-      if (kdsFilter === 'all') return true;
-      if (kdsFilter === 'active') return order.prepStage < 3;
-      if (kdsFilter === 'completed') return order.prepStage === 3;
-      if (kdsFilter === 'rush') return order.priority === 'Rush' || order.priority === 'VIP';
-      return true;
-    });
-  }, [placedOrders, kdsFilter]);
 
   const activeSessionTotals = useMemo(() => {
     const active = activeTableOrders;
@@ -904,49 +756,9 @@ function DineFlowApp() {
     <div className="min-h-screen bg-[#FFFDF7] text-[#1F2937] font-sans flex flex-col items-center w-full selection:bg-[#FF6B35]/20">
       
       {/* ==========================================
-          UNIVERSAL RUNTIME DUAL-ROLE TOGGLE
-          ========================================== */}
-      <div className="w-full max-w-5xl bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 sticky top-0 z-50 shadow-md">
-        <div className="flex items-center gap-2.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          <p className="text-white text-xs font-bold tracking-wide">
-            <span className="text-amber-400">DineFlow</span> Operational Simulator v2.5
-          </p>
-        </div>
-
-        <div className="flex bg-slate-850 p-1 rounded-xl border border-slate-700/60">
-          <button
-            onClick={() => setRole('customer')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black transition-all ${
-              role === 'customer' 
-              ? 'bg-[#FF6B35] text-white shadow-md' 
-              : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>📱</span> Customer View (Mobile Sandbox)
-          </button>
-          <button
-            onClick={() => setRole('kitchen')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-black transition-all relative ${
-              role === 'kitchen' 
-              ? 'bg-[#FF6B35] text-white shadow-md' 
-              : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>🍳</span> Kitchen Monitor (KDS Tablet)
-            {(placedOrders.filter(o => o.prepStage < 3).length > 0 || activeAlerts.length > 0) && (
-              <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full animate-bounce">
-                {placedOrders.filter(o => o.prepStage < 3).length + activeAlerts.length}
-              </span>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* ==========================================
           CUSTOMER ROLE SCREEN VIEWS
           ========================================== */}
-      {role === 'customer' && (
+      (
         <div className="w-full max-w-md bg-white min-h-screen shadow-2xl flex flex-col relative overflow-x-hidden border-x border-[#FF6B35]/10 pb-32">
           
           {/* Header */}
@@ -1786,336 +1598,7 @@ function DineFlowApp() {
           )}
 
         </div>
-      )}
-
-      {/* ==========================================
-          KITCHEN STAFF ROLE VIEW (KDS MONITOR)
-          ========================================== */}
-      {role === 'kitchen' && (
-        <div className="w-full max-w-6xl bg-slate-950 min-h-screen text-slate-100 flex flex-col p-6 font-sans">
-          
-          {/* Brand & Stats Header */}
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8 border-b border-slate-800 pb-6">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-orange-600 to-amber-500 flex items-center justify-center text-white font-extrabold text-2xl shadow-xl shadow-orange-950/40 relative">
-                🍳
-                <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-emerald-500 animate-ping" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h1 className="font-black text-2xl tracking-tight text-white uppercase">
-                    ChefMonitor <span className="text-orange-500">v2.5</span>
-                  </h1>
-                  <span className="bg-orange-500/10 border border-orange-500/30 text-orange-400 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider">
-                    Tablet View
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 font-medium">Real-Time Kitchen Display System (KDS) • Sync Active</p>
-              </div>
-            </div>
-
-            {/* Metrics Dashboard */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full lg:w-auto">
-              <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl text-center shadow-inner relative overflow-hidden group">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider mb-0.5">Active Tickets</span>
-                <span className="font-black text-2xl text-orange-500">{placedOrders.filter(o => o.prepStage < 3).length}</span>
-                <div className="absolute left-0 right-0 bottom-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500 transform scale-x-0 group-hover:scale-x-100 transition-transform" />
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl text-center shadow-inner relative overflow-hidden group">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider mb-0.5">Table Alerts</span>
-                <span className={`font-black text-2xl ${activeAlerts.length > 0 ? 'text-red-500 animate-pulse' : 'text-slate-400'}`}>
-                  {activeAlerts.length}
-                </span>
-                <div className="absolute left-0 right-0 bottom-0 h-1 bg-red-500 transform scale-x-0 group-hover:scale-x-100 transition-transform" />
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 p-3.5 rounded-2xl text-center shadow-inner relative overflow-hidden group">
-                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-wider mb-0.5">Dispatched</span>
-                <span className="font-black text-2xl text-emerald-500">{placedOrders.filter(o => o.prepStage === 3).length}</span>
-                <div className="absolute left-0 right-0 bottom-0 h-1 bg-emerald-500 transform scale-x-0 group-hover:scale-x-100 transition-transform" />
-              </div>
-
-              {/* Sound Test Panel */}
-              <button 
-                onClick={playKitchenBell}
-                className="bg-slate-900 border border-slate-800 hover:border-slate-700 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1 active:scale-95 transition-all text-slate-300"
-              >
-                <Volume2 className="w-4 h-4 text-orange-500 animate-bounce" />
-                <span className="text-[10px] font-bold block uppercase tracking-wider">Test Bell</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-slate-900/60 p-3 rounded-2xl border border-slate-850">
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setKdsFilter('active')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                  kdsFilter === 'active' 
-                  ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' 
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
-                Active Prep Board ({placedOrders.filter(o => o.prepStage < 3).length})
-              </button>
-
-              <button
-                onClick={() => setKdsFilter('rush')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                  kdsFilter === 'rush' 
-                  ? 'bg-red-600 text-white shadow-lg shadow-red-600/20 animate-pulse' 
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                🚨 Rush / VIP ({placedOrders.filter(order => order.priority === 'Rush' || order.priority === 'VIP').length})
-              </button>
-
-              <button
-                onClick={() => setKdsFilter('completed')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                  kdsFilter === 'completed' 
-                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                ✓ Archive Log ({placedOrders.filter(o => o.prepStage === 3).length})
-              </button>
-
-              <button
-                onClick={() => setKdsFilter('all')}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                  kdsFilter === 'all' 
-                  ? 'bg-slate-750 text-white' 
-                  : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800'
-                }`}
-              >
-                Show All Tickets ({placedOrders.length})
-              </button>
-            </div>
-
-            <div className="text-[11px] font-bold text-slate-400 flex items-center gap-2 bg-slate-950 px-3.5 py-1.5 rounded-xl border border-slate-800">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-              KDS Station Online & Syncing
-            </div>
-          </div>
-
-          {/* Grid Layout splits order blocks and service alarms */}
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
-            
-            {/* LEFT 3 COLUMNS: MAIN ACTIVE ORDERS SCREEN */}
-            <div className="xl:col-span-3 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2">
-                  <span>🔥</span> Order Dispatch Grid
-                </h3>
-                <span className="text-xs text-slate-500 font-semibold">Total Displayed: {filteredKdsOrders.length}</span>
-              </div>
-
-              {filteredKdsOrders.length === 0 ? (
-                <div className="bg-slate-900/20 border-2 border-dashed border-slate-850 rounded-[32px] p-16 text-center shadow-inner">
-                  <Flame className="w-12 h-12 text-slate-700 mx-auto mb-3 animate-pulse" />
-                  <h4 className="font-bold text-slate-400 text-base">Kitchen Queue is Clean</h4>
-                  <p className="text-xs text-slate-500 mt-2 max-w-sm mx-auto leading-relaxed">
-                    No active orders match your selected view. Switch to the customer sandbox, add items to your food tray, and dispatch them to the kitchen!
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  {filteredKdsOrders.map((order) => {
-                    const isCompleted = order.prepStage === 3;
-                    const itemsList = order.items;
-
-                    return (
-                      <div 
-                        key={order.id} 
-                        className={`bg-slate-900 border rounded-3xl overflow-hidden shadow-xl transition-all relative flex flex-col justify-between ${
-                          isCompleted ? 'border-slate-800 opacity-60' : 'border-slate-800'
-                        }`}
-                      >
-                        {/* Priority glowing sidebar indicators */}
-                        <div className={`absolute top-0 bottom-0 left-0 w-2.5 ${
-                          order.priority === 'VIP' ? 'bg-purple-600 animate-pulse' :
-                          order.priority === 'Rush' ? 'bg-red-500 animate-pulse' :
-                          'bg-orange-500'
-                        }`} />
-
-                        {/* Card body content */}
-                        <div className="p-5 pl-7">
-                          
-                          {/* Card header with monospaced info */}
-                          <div className="flex justify-between items-start pb-3 border-b border-slate-800/80 mb-4">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="bg-slate-800 border border-slate-700 text-white text-xs font-black px-3 py-1 rounded-lg">
-                                  TABLE {order.table}
-                                </span>
-                                <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                                  order.priority === 'VIP' ? 'bg-purple-500/10 text-purple-400 border border-purple-500/30' :
-                                  order.priority === 'Rush' ? 'bg-red-500/10 text-red-400 border border-red-500/30 animate-pulse' :
-                                  'bg-slate-800 text-slate-400'
-                                }`}>
-                                  {order.priority}
-                                </span>
-                              </div>
-                              <span className="text-[10px] text-slate-500 font-mono block mt-1">Ticket: {order.id}</span>
-                              <span className="text-[9px] text-slate-600 font-mono block">Session: {order.sessionId?.slice(0, 8) ?? "none"}</span>
-                            </div>
-                            <div className="text-right">
-                              <span className="text-xs font-mono text-slate-400 font-bold block">{order.time}</span>
-                              <span className="text-[9px] text-slate-500 block">Round 1</span>
-                            </div>
-                          </div>
-
-                          {/* Chef Directives Note */}
-                          {order.notes && (
-                            <div className="bg-[#FF6B35]/5 border border-[#FF6B35]/25 p-3 rounded-2xl text-xs text-[#FF6B35] font-bold mb-4 flex gap-2 items-start">
-                              <span className="text-sm">⚠️</span>
-                              <div>
-                                <span className="text-[10px] uppercase text-orange-400 block tracking-wider mb-0.5">Chef Instruction:</span>
-                                "{order.notes}"
-                              </div>
-                            </div>
-                          )}
-
-                          {/* List items checklist */}
-                          <div className="space-y-3 mb-5">
-                            <span className="text-[9px] text-slate-500 uppercase font-black tracking-widest block mb-1">
-                              Dish Checklist (Tap item to cross off)
-                            </span>
-                            {itemsList.map((item, i) => {
-                              const itemKey = `${order.id}-${item.id}`;
-                              const isItemChecked = order.completedDishes[itemKey];
-
-                              return (
-                                <div 
-                                  key={i} 
-                                  onClick={() => toggleKdsItemPrepped(order.id, itemKey)}
-                                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
-                                    isItemChecked 
-                                    ? 'bg-emerald-500/10 border-emerald-500/30 text-slate-400' 
-                                    : 'bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-100'
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${
-                                      isItemChecked 
-                                      ? 'bg-emerald-600 border-emerald-500 text-white' 
-                                      : 'border-slate-700'
-                                    }`}>
-                                      {isItemChecked && <Check className="w-3.5 h-3.5" />}
-                                    </div>
-                                    <span className={`text-sm font-extrabold ${isItemChecked ? 'line-through opacity-50' : ''}`}>
-                                      {item.quantity}x {item.name}
-                                    </span>
-                                  </div>
-                                  <span className="text-[10px] text-slate-500 font-bold">{item.prepTime}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-
-                        {/* Interactive Controls & Ticket Progress */}
-                        <div className="bg-slate-950/80 p-5 pt-4 border-t border-slate-800/80 space-y-4 rounded-b-3xl">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="text-slate-400">Preparation Stage:</span>
-                            <span className={`font-black uppercase tracking-wide flex items-center gap-1 ${PREP_STAGES[order.prepStage].color}`}>
-                              <span>{PREP_STAGES[order.prepStage].icon}</span>
-                              {PREP_STAGES[order.prepStage].title}
-                            </span>
-                          </div>
-
-                          {/* Dynamic progress loader bar */}
-                          <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                            <div 
-                              className="bg-gradient-to-r from-orange-500 to-amber-500 h-full transition-all duration-700"
-                              style={{ width: `${(order.prepStage / (PREP_STAGES.length - 1)) * 100}%` }}
-                            />
-                          </div>
-
-                          {/* Action flow buttons */}
-                          <div className="flex gap-2">
-                            {order.prepStage < 3 ? (
-                              <button
-                                onClick={() => advanceKdsStage(order.id)}
-                                className="flex-1 bg-[#2D6A4F] hover:bg-[#224f3b] text-white text-xs font-black py-3 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-1.5 shadow-md shadow-emerald-950/20"
-                              >
-                                <span>🍳</span> Advance to: {PREP_STAGES[order.prepStage + 1].title}
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => dismissKdsOrder(order.id)}
-                                className="flex-1 bg-slate-850 hover:bg-slate-800 text-slate-300 text-xs font-black py-3 rounded-2xl transition-all active:scale-95 text-center block border border-slate-800"
-                              >
-                                Archive Ticket
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* RIGHT SIDE PANEL: SERVICE ALERTS CONSOLE */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-black text-sm tracking-widest text-slate-400 uppercase flex items-center gap-2">
-                  <span>🔔</span> Alert console
-                </h3>
-                <span className="text-xs bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full font-bold">
-                  Live Feed
-                </span>
-              </div>
-
-              {activeAlerts.length === 0 ? (
-                <div className="bg-slate-900/20 border-2 border-dashed border-slate-850 rounded-[32px] p-8 text-center shadow-inner">
-                  <CheckCircle2 className="w-10 h-10 text-slate-700 mx-auto mb-2 animate-bounce" />
-                  <h4 className="font-bold text-slate-400 text-xs">Alert Console Clear</h4>
-                  <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">
-                    No active table service alerts. Diner help calls will pop up here.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {activeAlerts.map((alert) => (
-                    <div 
-                      key={alert.id} 
-                      className="bg-red-500/10 border border-red-500/30 p-5 rounded-3xl flex flex-col justify-between shadow-lg relative overflow-hidden animate-pulse border-l-4 border-l-red-500"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <span className="bg-red-500 text-white text-[10px] font-black px-3 py-1 rounded-lg uppercase tracking-wider shadow-md">
-                          TABLE {alert.table} Paged
-                        </span>
-                        <span className="text-[10px] text-slate-500 font-mono font-bold">{alert.time}</span>
-                      </div>
-                      
-                      <h4 className="text-white font-extrabold text-base mb-4 bg-slate-950/40 p-3 rounded-2xl border border-slate-900">
-                        "{alert.reason}"
-                      </h4>
-                      
-                      <button
-                        onClick={() => resolveAlert(alert.id)}
-                        className="w-full bg-red-600 hover:bg-red-700 text-white text-xs font-black py-3 rounded-2xl transition-all active:scale-95 shadow-md shadow-red-950/20"
-                      >
-                        Resolve Alert & Clear
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
-
-        </div>
-      )}
+      )
 
       {/* ==========================================
           MODAL VIEWS: DETAILED DISH SPEC SHEET
