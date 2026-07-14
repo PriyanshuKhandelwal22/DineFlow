@@ -81,7 +81,7 @@ export default function KDSPage() {
         setOrders(data);
       }
     } catch (e) {
-      console.error("KDS failed to fetch orders:", e);
+      console.warn("KDS failed to fetch orders:", e);
     }
   };
 
@@ -93,7 +93,7 @@ export default function KDSPage() {
         setAlerts(data);
       }
     } catch (e) {
-      console.error("KDS failed to fetch alerts:", e);
+      console.warn("KDS failed to fetch alerts:", e);
     }
   };
 
