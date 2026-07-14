@@ -107,13 +107,14 @@ dineflow/
 │   ├── kds/                  # Kitchen Display System
 │   │   ├── ActionButtons.tsx # Contextual task buttons
 │   │   ├── EmptyState.tsx    # Idle dashboard screens
-│   │   ├── KDSHeader.tsx     # Clock & statistics banner
+│   │   ├── KDSHeader.tsx     # Clock, stats & logout button banner
 │   │   ├── KitchenStats.tsx  # Metrics numbers dashboard
 │   │   ├── OrderCard.tsx     # Single ticket layout with ticker
 │   │   ├── OrderColumn.tsx   # Kanban column view
 │   │   ├── OrderItems.tsx    # Interactive checklist
 │   │   ├── StatusBadge.tsx   # Urgency tags
 │   │   └── page.tsx          # Controller & Broadcast listener
+│   ├── login/                # Staff dashboard login page view
 │   ├── r/                    # Redirect routing logic
 │   │   └── [restaurant]/     # Scans dynamic table QR urls and redirects
 │   │       └── table/        # e.g., /r/demo/table/12 maps to / with params
@@ -128,8 +129,11 @@ dineflow/
 ├── lib/                      # Reusable Utilities
 │   └── db.ts                 # Prisma Client singleton definition
 ├── prisma/                   # DB Migrations and Schemas
-│   ├── schema.prisma         # Models mapping (MenuItem, Order, OrderItem)
-│   └── seed.ts               # Seeding script
+│   ├── schema.prisma         # Models mapping (MenuItem, Order, User, etc.)
+│   └── seed.ts               # Seeding script for users
+├── auth.ts                   # NextAuth main handler
+├── auth.config.ts            # NextAuth Edge-safe configuration
+├── middleware.ts             # Global route protection middleware
 ├── package.json              # NPM manifest
 ├── tsconfig.json             # TypeScript compile setup
 └── next.config.ts            # Next.js configurations
@@ -173,8 +177,11 @@ Create a `.env` file in the root directory:
 ```env
 # Neon Serverless PostgreSQL Database Connection String
 DATABASE_URL="postgresql://username:password@hostname:5432/dbname?sslmode=require"
+
+# NextAuth secret key used to encrypt sessions (generate with openssl rand -base64 32)
+AUTH_SECRET="your-secret-key-goes-here"
 ```
-*(Ask your Technical Lead for dev database credentials, or configure a local PostgreSQL instance).*
+*(Ask your Technical Lead for dev database credentials and the secret key, or configure a local PostgreSQL instance).*
 
 ### 4.4 Database Handshake & Seeding
 Prepare the database tables and populate the default menu items:
@@ -185,9 +192,13 @@ npx prisma db push
 # Generate client typescript typings
 npx prisma generate
 
-# Run database seeds
+# Run database seeds to create system admin and kitchen staff accounts
 npx prisma db seed
 ```
+
+*Seeded User Accounts for Development:*
+*   **Admin User**: `admin@menuverse.com` (password: `admin123`, role: `ADMIN`)
+*   **Kitchen User**: `kitchen@menuverse.com` (password: `kitchen123`, role: `KITCHEN`)
 
 ### 4.5 Execution Commands
 *   **Start Local Dev Server**:
@@ -286,6 +297,7 @@ Prisma ORM is utilized over a relational PostgreSQL engine.
 *   **`TableSession`**: Tracks active dining groups. A new session is initialized when a new client scans the QR code.
 *   **`RestaurantTable`**: Setup helper detailing physical seating counts and active status indicators.
 *   **`StaffAlert`**: Alarms log detailing floor service queries (e.g. table help calls).
+*   **`User`**: Admin and KDS dashboard credentials store, mapping to roles (`ADMIN` or `KITCHEN`).
 
 ### 6.3 Unique Constraints & Indexes
 *   `RestaurantTable` holds a unique composite index `@@unique([restaurantSlug, tableNumber])` to prevent duplicate tables within the same restaurant slug.
