@@ -4,6 +4,9 @@
 import React, { useState, useEffect } from "react";
 import KitchenStats from "./KitchenStats";
 
+import { signOut } from "next-auth/react";
+import { LogOut } from "lucide-react";
+
 type KDSHeaderProps = {
   activeCount: number;
   alertCount: number;
@@ -62,6 +65,14 @@ export default function KDSHeader({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Live Feed
             </span>
+            <button
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              className="p-1 px-2 text-[10px] bg-slate-900 hover:bg-slate-800 rounded-md text-slate-400 hover:text-white flex items-center gap-1 cursor-pointer transition-all ml-2"
+              title="Sign Out"
+            >
+              <LogOut className="w-3 h-3" />
+              <span>Exit</span>
+            </button>
           </div>
           <p className="text-xs text-slate-500 mt-1 font-mono">
             {dateStr} • <span className="text-slate-400 font-bold">{time}</span>
