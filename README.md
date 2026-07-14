@@ -36,12 +36,30 @@ A modern QR-based restaurant management platform that enables customers to brows
 *   **Live Order Tracking**: Real-time status tracker (Sent ➜ Accepted ➜ Cooking ➜ Dispatched ➜ Served/Archived).
 *   **Staff Alerts**: Call for table assistance with a single tap.
 
+### 🍳 Kitchen Display System (KDS)
+*   **Dedicated KDS Dashboard** (`/kds`): Completely separated from the customer view — kitchen-only interface.
+*   **Kanban Ticket Board**: Orders flow across three columns — New Tickets → Preparing → Ready to Dispatch.
+*   **Priority Badges**: VIP, Rush, and Normal urgency labels with distinct color coding.
+*   **Interactive Dish Checklists**: Chefs tap individual items to mark them as prepped.
+*   **Live Ticker Timers**: Each ticket displays how long it has been active.
+*   **Audio Bell Alerts**: Web Audio API bell chimes on new order arrivals.
+*   **Real-time Sync**: BroadcastChannel API syncs ticket state instantly across browser tabs.
+
 ### 💼 Restaurant Administration
 *   **Interactive Control Panel**: Overview of orders, categories, active tables, and live revenue metrics.
 *   **Live Order Dispatcher**: Auto-polls active kitchen tickets every 3 seconds with status-updating controls.
 *   **Menu Manager**: Full CRUD (Create, Read, Update, Delete) capability for dishes, including toggle options for item availability.
 *   **Table Layout Builder**: Create and configure seating capacities and custom labels.
 *   **Staff Alert Resolver**: Real-time listing of active client alerts at tables to ensure prompt service.
+*   **QR Code Generator**: Single and bulk table-bound QR code generation with download support.
+
+### 🔐 Authentication & Security
+*   **Role-Based Access Control**: Two roles — `ADMIN` (full dashboard) and `KITCHEN` (KDS only).
+*   **JWT Sessions**: Secure, stateless session tokens signed with `AUTH_SECRET`.
+*   **Edge Middleware Protection**: Next.js middleware intercepts every request to `/admin/*` and `/kds/*` — unauthenticated users are redirected to `/login` before any page loads.
+*   **Credential Login**: bcrypt-hashed passwords stored in PostgreSQL, verified server-side.
+*   **Role Enforcement**: Kitchen staff attempting to access `/admin` are silently redirected back to `/kds`.
+*   **Glassmorphic Login Page**: Premium dark-themed login interface at `/login`.
 
 ---
 
@@ -56,6 +74,7 @@ A modern QR-based restaurant management platform that enables customers to brows
 | **Database** | PostgreSQL (hosted on [Neon](https://neon.tech/)) |
 | **ORM** | [Prisma ORM](https://www.prisma.io/) |
 | **API Architecture** | Next.js API Routes (Serverless) |
+| **Authentication** | Auth.js (NextAuth v5) & bcryptjs |
 | **QR Code Generation**| `qrcode` Node library |
 | **Icons** | [Lucide React](https://lucide.dev/) |
 | **Deployment** | [Vercel](https://vercel.com/) |
@@ -79,6 +98,8 @@ dineflow/
 │   │   ├── qr/               # Base64 QR code image generator
 │   │   ├── sessions/         # Table session lifecycle handlers
 │   │   └── tables/           # Restaurant table settings APIs
+│   ├── kds/                  # Dedicated Kitchen Display System dashboard page
+│   ├── login/                # Staff dashboard login page
 │   ├── r/                    # Dynamic restaurant table scanner entrypoint
 │   │   └── [restaurant]/     # Redirect logic maps to main menu query params
 │   ├── globals.css           # Global Tailwind CSS configurations
@@ -92,8 +113,11 @@ dineflow/
 │   └── db.ts                 # Database client (Prisma Client singleton)
 ├── prisma/                   # Database layer
 │   ├── schema.prisma         # PostgreSQL data models & connections
-│   └── seed.ts               # Local seeding scripts for menus
+│   └── seed.ts               # Local seeding scripts for users
 ├── public/                   # Static public assets (SVGs, icons)
+├── auth.ts                   # Auth.js configuration handler
+├── auth.config.ts            # Edge-runtime compatible Auth.js config
+├── middleware.ts             # Route protection middleware
 ├── package.json              # Node packages and project scripts
 └── tsconfig.json             # TypeScript configurations
 ```
@@ -102,11 +126,14 @@ dineflow/
 
 ## 🔌 Environment Variables
 
-Create a `.env` file in the root directory and configure the database link:
+Create a `.env` file in the root directory and configure variables:
 
 ```env
 # Neon / PostgreSQL database connection string
 DATABASE_URL="postgresql://username:password@hostname:5432/dbname?sslmode=require"
+
+# NextAuth secret used to encrypt session tokens (e.g. generate with openssl rand -base64 32)
+AUTH_SECRET="your-32-character-secret-key-here"
 ```
 > [!IMPORTANT]
 > Never commit actual credentials or secrets to version control. Keep `.env` in your `.gitignore` list.
@@ -133,10 +160,13 @@ DATABASE_URL="postgresql://username:password@hostname:5432/dbname?sslmode=requir
    ```
 
 4. **Seed the database**:
-   Seed the default menu and category structure:
+   Seed the default admin/kitchen staff user accounts:
    ```bash
    npx prisma db seed
    ```
+   *Seeded credentials:*
+   *   **Admin**: `admin@menuverse.com` / `admin123`
+   *   **Kitchen**: `kitchen@menuverse.com` / `kitchen123`
 
 5. **Start development server**:
    ```bash
@@ -150,34 +180,39 @@ DATABASE_URL="postgresql://username:password@hostname:5432/dbname?sslmode=requir
 
 ```mermaid
 graph TD
-    subgraph Client [Customer View]
-        QR[1. Scan QR Code] -->|Redirects to| FE[2. Next.js Frontend]
-        FE -->|Context| Cart[Cart & Active Session]
-        FE -->|Submit Order| API_O[API Routes: /api/orders]
-        FE -->|Call Staff| API_A[API Routes: /api/alerts]
+    subgraph Auth [Authentication Layer]
+        Login[/login Page] -->|Credentials| AuthAPI[/api/auth NextAuth]
+        AuthAPI -->|bcrypt verify| UserDB[(User Table)]
+        AuthAPI -->|JWT Token| MW[Edge Middleware]
+        MW -->|role=ADMIN| AdminFE
+        MW -->|role=KITCHEN| KDSFE
+        MW -->|unauthenticated| Login
     end
 
-    subgraph Server [Backend App Router]
-        API_O --> DB_O[Prisma Client]
-        API_A --> DB_A[Prisma Client]
-        API_M[API Routes: /api/menu] --> DB_M[Prisma Client]
-        API_T[API Routes: /api/tables] --> DB_T[Prisma Client]
-        API_Q[API Routes: /api/qr] --> QR_Lib[qrcode library]
+    subgraph Client [Customer View — No Auth Required]
+        QR[Scan QR Code] -->|Redirects to| FE[Next.js Frontend /]
+        FE -->|Submit Order| API_O[/api/orders]
+        FE -->|Call Staff| API_A[/api/alerts]
     end
 
-    subgraph Database [Storage Layer]
-        DB_O --> PG[(PostgreSQL Database)]
-        DB_A --> PG
-        DB_M --> PG
-        DB_T --> PG
+    subgraph Kitchen [Kitchen Display System]
+        KDSFE[KDS Dashboard /kds] -->|Fetch tickets| API_O
+        KDSFE -->|BroadcastChannel| FE
     end
 
-    subgraph Admin [Dashboard View]
-        AdminFE[Admin Next.js Portal] -->|3. Sec Polling| API_O
-        AdminFE -->|Update Order Status| API_O
-        AdminFE -->|Manage Items| API_M
-        AdminFE -->|Configure Tables| API_T
-        AdminFE -->|Generate Code| API_Q
+    subgraph Admin [Admin Dashboard]
+        AdminFE[Admin Portal /admin] -->|Manage Items| API_M[/api/menu]
+        AdminFE -->|Configure Tables| API_T[/api/tables]
+        AdminFE -->|Generate QR| API_Q[/api/qr]
+        AdminFE -->|View Orders| API_O
+    end
+
+    subgraph Database [Storage Layer — Neon PostgreSQL]
+        API_O --> PG[(PostgreSQL)]
+        API_A --> PG
+        API_M --> PG
+        API_T --> PG
+        UserDB --> PG
     end
 ```
 
@@ -187,13 +222,19 @@ graph TD
 
 ```mermaid
 flowchart TD
-    Scan[Scan Table QR Code] --> Browse[Browse Menu & Filter Categories]
-    Browse --> Add[Add Items to Cart & Add Cooking Notes]
-    Add --> SelectPriority[Select Ticket Urgency: Normal/Rush/VIP]
+    StaffLogin[Staff Scans Login Page /login] --> Auth{Role?}
+    Auth -->|ADMIN| AdminDash[Admin Dashboard /admin]
+    Auth -->|KITCHEN| KDSDash[KDS Dashboard /kds]
+
+    Scan[Customer Scans QR Code] --> Browse[Browse Menu & Filter Categories]
+    Browse --> Add[Add Items to Cart & Add Notes]
+    Add --> SelectPriority[Select Urgency: Normal / Rush / VIP]
     SelectPriority --> Place[Place Order]
-    Place --> AdminReceive[Admin Kitchen Dashboard Receives Ticket]
-    AdminReceive --> UpdateStatus[Admin Updates Status: Sent ➜ Accepted ➜ Cooking ➜ Dispatched ➜ Served]
-    UpdateStatus --> Track[Customer Tracks Status Real-time]
+    Place --> KDSDash
+    KDSDash --> Accept[Chef Accepts Ticket]
+    Accept --> Cook[Chef Prepares & Checks Off Items]
+    Cook --> Ready[Mark Ready to Dispatch]
+    Ready --> Track[Customer Sees Status Update in Real-time]
 ```
 
 ---
@@ -205,6 +246,9 @@ flowchart TD
 *   **State Hydration & Context**: Managing real-time cart counts and price aggregation across server and client boundary structures in Next.js.
 *   **API Performance & UX**: Implementing non-blocking UI states, optimistically rendering orders, and setting up clean auto-polling intervals (3000ms) to sync active kitchen tickets without socket overhead.
 *   **Data Integrity Protection**: Writing table models with "soft-disable" fields (`active: boolean`) to protect historic transaction records and active customer sessions.
+*   **NextAuth v5 JWT Strategy**: Configuring Auth.js with a credentials provider, Edge-safe split config (`auth.config.ts` vs `auth.ts`), and JWT sessions — learning that `PrismaAdapter` conflicts with `strategy: "jwt"` and must be omitted.
+*   **Next.js Edge Middleware**: Implementing role-based route protection at the edge layer using `req.auth` from NextAuth, ensuring protected pages never load before authentication is verified.
+*   **SessionProvider Requirement**: Understanding that client-side `signOut()` from `next-auth/react` requires the `SessionProvider` wrapper in `layout.tsx` to communicate with the session cookie.
 
 ---
 
@@ -219,17 +263,25 @@ flowchart TD
 *   **Active Table Tracking & Relational Deletes**:
     *   *Challenge*: Modifying or deleting menu items or table entries could crash existing client carts or historic order lookups.
     *   *Solution*: Added soft-disable flags for tables and structured Prisma cascades (`onDelete: Cascade` on order lines, distinct client relations) to ensure historic orders are preserved.
+*   **Auth Middleware Redirect Loop**:
+    *   *Challenge*: Every user — including admins — was being redirected to `/kds` instead of `/admin`, and the logout button was doing nothing.
+    *   *Solution*: Identified three root causes: missing `AUTH_SECRET` in `.env` (JWT tokens couldn't be verified), `PrismaAdapter` conflicting with `strategy: "jwt"` (sessions couldn't be read), and missing `SessionProvider` in `layout.tsx` (client-side `signOut()` had no context to operate on). Fixed all three simultaneously.
+*   **KDS Fetch Error Overlay on Logout**:
+    *   *Challenge*: Clicking "Exit" on the KDS triggered a red error overlay from Next.js dev mode, blocking the logout redirect.
+    *   *Solution*: The KDS's visibility change handler fired a `fetch()` call at the exact moment the session was being destroyed, causing an aborted network request. Switching from `console.error` to `console.warn` prevented Next.js from intercepting it as a fatal error.
 
 ---
 
 ## 🔮 Future Scope
 
+*   **WebSocket / Supabase Realtime**: Replace the current BroadcastChannel (same-browser only) with true multi-device real-time sync for production kitchen environments.
+*   **Online Payment Integration**: Connect gateways (Stripe, Razorpay, UPI) directly to the customer checkout flow.
 *   **AI Smart Dish Recommendations**: Suggest complementary dishes (e.g. suggesting desserts or beverages based on selected starters).
+*   **Admin User Management**: Add a `/admin/users` page to create, edit, and remove staff accounts without touching the database directly.
 *   **Table Reservations**: Pre-book tables and pre-order food to reduce waiting time.
-*   **Loyalty Points & Offers**: Reward customers with points redeemable on future visits.
-*   **Integrated Payments**: Connect gateways (Stripe, Razorpay, UPI) directly to client checkout views.
-*   **Multi-Lingual Menu**: Translate menu listings dynamically for international diners.
+*   **Multi-Restaurant Tenancy**: Support multiple restaurants under isolated slugs with separate menus, tables, and order logs.
 *   **Inventory & Stock Alerts**: Auto-disable menu items when stock thresholds run out.
+*   **Loyalty Points & Offers**: Reward customers with points redeemable on future visits.
 
 ---
 
