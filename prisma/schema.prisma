@@ -102,3 +102,18 @@ model StaffAlert {
   resolved  Boolean  @default(false)
   createdAt DateTime @default(now())
 }
+
+enum UserRole {
+  ADMIN
+  KITCHEN
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      UserRole @default(KITCHEN)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
