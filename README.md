@@ -11,20 +11,6 @@ A modern QR-based restaurant management platform that enables customers to brows
 
 ---
 
-## 📷 Screenshots
-
-| Customer Home | QR Menu View | Food Details |
-| :---: | :---: | :---: |
-| ![Home Page](https://via.placeholder.com/400x250?text=Customer+Home) | ![QR Menu](https://via.placeholder.com/400x250?text=QR+Menu) | ![Food Details](https://via.placeholder.com/400x250?text=Food+Details) |
-
-| Cart & Special Notes | Checkout / Priority | Admin Dashboard |
-| :---: | :---: | :---: |
-| ![Cart](https://via.placeholder.com/400x250?text=Cart) | ![Checkout](https://via.placeholder.com/400x250?text=Checkout) | ![Admin Dashboard](https://via.placeholder.com/400x250?text=Admin+Dashboard) |
-
-*Add your own screenshots inside the `/public/screenshots/` directory and update the links above.*
-
----
-
 ## ✨ Features
 
 ### 👤 Customer Experience
@@ -135,8 +121,6 @@ DATABASE_URL="postgresql://username:password@hostname:5432/dbname?sslmode=requir
 # NextAuth secret used to encrypt session tokens (e.g. generate with openssl rand -base64 32)
 AUTH_SECRET="your-32-character-secret-key-here"
 ```
-> [!IMPORTANT]
-> Never commit actual credentials or secrets to version control. Keep `.env` in your `.gitignore` list.
 
 ---
 
@@ -297,11 +281,6 @@ Contributions are welcome! If you have suggestions or want to fix bugs, feel fre
 
 ---
 
-## 📄 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
----
 
 ## ✍️ Author
 
@@ -309,3 +288,8 @@ Distributed under the **MIT License**. See `LICENSE` for more information.
 *   **GitHub**: [@PriyanshuKhandelwal22](https://github.com/PriyanshuKhandelwal22)
 *   **LinkedIn**: [Priyanshu Khandelwal](https://www.linkedin.com/in/priyanshu-khandelwal/)
 *   **Email**: [priyanshukhandelwal22@gmail.com](mailto:priyanshukhandelwal22@gmail.com)
+
+**Devraj Sisodiya**
+*   **GitHub**: [@Devraj-Sisodiya](https://github.com/Devraj-Sisodiya)
+*   **LinkedIn**: [Devraj Sisodiya](https://www.linkedin.com/in/devrajsisodiya/)
+*   **Email**: [devrajmnitj@gmail.com](mailto:devrajmnitj@gmail.com)
