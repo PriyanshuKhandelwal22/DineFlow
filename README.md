@@ -7,23 +7,11 @@ A modern QR-based restaurant management platform that enables customers to brows
 
 ## 🚀 Live Demo
 
-🌐 [https://dineflow.vercel.app](https://dineflow.vercel.app)
+🌐 [https://dine-flow-topaz.vercel.app/](https://dine-flow-topaz.vercel.app)
 
 ---
 
-## 📷 Screenshots
 
-| Customer Home | QR Menu View | Food Details |
-| :---: | :---: | :---: |
-| ![Home Page](https://via.placeholder.com/400x250?text=Customer+Home) | ![QR Menu](https://via.placeholder.com/400x250?text=QR+Menu) | ![Food Details](https://via.placeholder.com/400x250?text=Food+Details) |
-
-| Cart & Special Notes | Checkout / Priority | Admin Dashboard |
-| :---: | :---: | :---: |
-| ![Cart](https://via.placeholder.com/400x250?text=Cart) | ![Checkout](https://via.placeholder.com/400x250?text=Checkout) | ![Admin Dashboard](https://via.placeholder.com/400x250?text=Admin+Dashboard) |
-
-*Add your own screenshots inside the `/public/screenshots/` directory and update the links above.*
-
----
 
 ## ✨ Features
 
@@ -62,43 +50,82 @@ A modern QR-based restaurant management platform that enables customers to brows
 
 ---
 
-## 📂 Folder Structure
-
-```
 dineflow/
-├── app/                      # Next.js App Router (Pages & APIs)
-│   ├── admin/                # Admin Panel pages
-│   │   ├── menu/             # Menu CRUD management interface
-│   │   ├── orders/           # Live kitchen ticket dashboard
-│   │   ├── qr/               # Table QR Code generation tool
-│   │   └── tables/           # Seating & Tables layout page
-│   ├── api/                  # Serverless API routes
-│   │   ├── alerts/           # Staff Alert creation & resolution endpoints
-│   │   ├── menu/             # Menu item data management APIs
-│   │   ├── orders/           # Customer checkout and ticket management APIs
-│   │   ├── qr/               # Base64 QR code image generator
-│   │   ├── sessions/         # Table session lifecycle handlers
-│   │   └── tables/           # Restaurant table settings APIs
-│   ├── r/                    # Dynamic restaurant table scanner entrypoint
-│   │   └── [restaurant]/     # Redirect logic maps to main menu query params
-│   ├── globals.css           # Global Tailwind CSS configurations
-│   ├── layout.tsx            # HTML layout wrapper
-│   └── page.tsx              # Core client menu browsing & checkout page
-├── context/                  # State management
-│   └── CartContext.tsx       # Global cart and order state context
-├── data/                     # Static configurations
-│   └── menu.ts               # Default seed/fallback menu definitions
-├── lib/                      # Global configurations
-│   └── db.ts                 # Database client (Prisma Client singleton)
-├── prisma/                   # Database layer
-│   ├── schema.prisma         # PostgreSQL data models & connections
-│   └── seed.ts               # Local seeding scripts for menus
-├── public/                   # Static public assets (SVGs, icons)
-├── package.json              # Node packages and project scripts
-└── tsconfig.json             # TypeScript configurations
-```
-
----
+│
+├── 📄 .env                          # Database connection string (Neon PostgreSQL)
+├── 📄 .gitignore                    # Git ignore rules
+├── 📄 AGENTS.md                     # Agent rules for Next.js
+├── 📄 CLAUDE.md                     # Claude config
+├── 📄 ONBOARDING.md                 # Developer onboarding guide (for Devraj)
+├── 📄 README.md                     # Project documentation
+├── 📄 eslint.config.mjs             # ESLint configuration
+├── 📄 global.d.ts                   # Global TypeScript declarations
+├── 📄 next-env.d.ts                 # Next.js environment types
+├── 📄 next.config.ts                # Next.js configuration
+├── 📄 package.json                  # Dependencies & scripts
+├── 📄 package-lock.json             # Dependency lock file
+├── 📄 postcss.config.mjs            # PostCSS / Tailwind pipeline
+├── 📄 prisma.config.ts              # Prisma config loader
+├── 📄 tsconfig.json                 # TypeScript configuration
+│
+├── 📂 app/                          # ─── Next.js App Router ───
+│   ├── 📄 favicon.ico               # Site favicon
+│   ├── 📄 globals.css               # Tailwind CSS v4 globals & theme tokens
+│   ├── 📄 layout.tsx                # Root HTML layout wrapper
+│   ├── 📄 page.tsx                  # 📱 Customer menu, cart & checkout (83 KB)
+│   │
+│   ├── 📂 kds/                      # ─── 🍳 Kitchen Display System (NEW) ───
+│   │   ├── 📄 page.tsx              # KDS controller, state, BroadcastChannel listener
+│   │   ├── 📄 KDSHeader.tsx         # Live clock, restaurant name, sync indicator
+│   │   ├── 📄 KitchenStats.tsx      # Active tickets, alerts, dispatched, urgent counters
+│   │   ├── 📄 OrderColumn.tsx       # Kanban column (New / Preparing / Ready)
+│   │   ├── 📄 OrderCard.tsx         # Single ticket card with duration timer
+│   │   ├── 📄 OrderItems.tsx        # Interactive dish checklist (tap to cross off)
+│   │   ├── 📄 ActionButtons.tsx     # Accept/Reject, Mark Ready, Complete buttons
+│   │   ├── 📄 StatusBadge.tsx       # Priority (VIP/Rush/Normal) & stage badges
+│   │   └── 📄 EmptyState.tsx        # Empty column placeholder illustrations
+│   │
+│   ├── 📂 admin/                    # ─── 💼 Admin Dashboard ───
+│   │   ├── 📄 page.tsx              # Admin portal homepage
+│   │   ├── 📂 menu/                 # Menu item CRUD management
+│   │   ├── 📂 orders/               # Order history & revenue dashboard
+│   │   ├── 📂 qr/                   # QR code generator (single & bulk)
+│   │   └── 📂 tables/              # Table seating layout manager
+│   │
+│   ├── 📂 api/                      # ─── 🔌 REST API Routes ───
+│   │   ├── 📂 alerts/               # Staff help alarm endpoints
+│   │   ├── 📂 menu/                 # Menu item data endpoints
+│   │   ├── 📂 orders/               # Order creation, stage updates, item checks
+│   │   ├── 📂 qr/                   # QR code image generation endpoint
+│   │   ├── 📂 sessions/             # Table session lifecycle handlers
+│   │   └── 📂 tables/              # Restaurant table config endpoints
+│   │
+│   └── 📂 r/                        # ─── 🔗 QR Redirect Router ───
+│       └── 📂 [restaurant]/
+│           └── 📂 table/
+│               └── 📂 [table]/
+│                   └── 📄 page.tsx  # Redirects /r/demo/table/12 → /?restaurant=demo&table=12
+│
+├── 📂 context/                      # ─── State Management ───
+│   └── 📄 CartContext.tsx           # Cart items, quantities, totals, priority, notes
+│
+├── 📂 data/                         # ─── Static Fallback Data ───
+│   └── 📄 menu.ts                   # Default seed menu items
+│
+├── 📂 lib/                          # ─── Shared Utilities ───
+│   └── 📄 db.ts                     # Prisma Client singleton
+│
+├── 📂 prisma/                       # ─── Database Layer ───
+│   ├── 📄 schema.prisma             # Models: MenuItem, Order, OrderItem, TableSession, etc.
+│   ├── 📄 seed.ts                   # Database seeding script
+│   
+│
+└── 📂 public/                       # ─── Static Assets ───
+    ├── 📄 file.svg
+    ├── 📄 globe.svg
+    ├── 📄 next.svg
+    ├── 📄 vercel.svg
+    └── 📄 window.svg
 
 ## 🔌 Environment Variables
 
@@ -245,15 +272,16 @@ Contributions are welcome! If you have suggestions or want to fix bugs, feel fre
 
 ---
 
-## 📄 License
-
-Distributed under the **MIT License**. See `LICENSE` for more information.
-
----
-
 ## ✍️ Author
 
 **Priyanshu Khandelwal**
 *   **GitHub**: [@PriyanshuKhandelwal22](https://github.com/PriyanshuKhandelwal22)
 *   **LinkedIn**: [Priyanshu Khandelwal](https://www.linkedin.com/in/priyanshu-khandelwal/)
 *   **Email**: [priyanshukhandelwal22@gmail.com](mailto:priyanshukhandelwal22@gmail.com)
+
+**Devraj Sisodiya**
+*   **GitHub**: [@Devraj-Sisodiya](https://github.com/Devraj-Sisodiya )
+*   **LinkedIn**: [Devraj Sisodiya](https://www.linkedin.com/in/devrajsisodiya/)
+*   **Email**: [devrajmnitj@gmail.com](mailto:devrajmnitj@gmail.com)
+
+
