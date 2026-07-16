@@ -69,43 +69,60 @@ A modern QR-based restaurant management platform that enables customers to brows
 
 ## 📂 Folder Structure
 
+
 ```
 dineflow/
-├── app/                      # Next.js App Router (Pages & APIs)
-│   ├── admin/                # Admin Panel pages
-│   │   ├── menu/             # Menu CRUD management interface
-│   │   ├── orders/           # Live kitchen ticket dashboard
-│   │   ├── qr/               # Table QR Code generation tool
-│   │   └── tables/           # Seating & Tables layout page
-│   ├── api/                  # Serverless API routes
-│   │   ├── alerts/           # Staff Alert creation & resolution endpoints
-│   │   ├── menu/             # Menu item data management APIs
-│   │   ├── orders/           # Customer checkout and ticket management APIs
-│   │   ├── qr/               # Base64 QR code image generator
-│   │   ├── sessions/         # Table session lifecycle handlers
-│   │   └── tables/           # Restaurant table settings APIs
-│   ├── kds/                  # Dedicated Kitchen Display System dashboard page
-│   ├── login/                # Staff dashboard login page
-│   ├── r/                    # Dynamic restaurant table scanner entrypoint
-│   │   └── [restaurant]/     # Redirect logic maps to main menu query params
-│   ├── globals.css           # Global Tailwind CSS configurations
-│   ├── layout.tsx            # HTML layout wrapper
-│   └── page.tsx              # Core client menu browsing & checkout page
-├── context/                  # State management
-│   └── CartContext.tsx       # Global cart and order state context
-├── data/                     # Static configurations
-│   └── menu.ts               # Default seed/fallback menu definitions
-├── lib/                      # Global configurations
-│   └── db.ts                 # Database client (Prisma Client singleton)
-├── prisma/                   # Database layer
-│   ├── schema.prisma         # PostgreSQL data models & connections
-│   └── seed.ts               # Local seeding scripts for users
-├── public/                   # Static public assets (SVGs, icons)
-├── auth.ts                   # Auth.js configuration handler
-├── auth.config.ts            # Edge-runtime compatible Auth.js config
-├── middleware.ts             # Route protection middleware
-├── package.json              # Node packages and project scripts
-└── tsconfig.json             # TypeScript configurations
+├── app/                          # Next.js App Router (Pages & APIs)
+│   ├── admin/                    # Admin Dashboard Pages
+│   │   ├── menu/                 # Menu CRUD management interface
+│   │   ├── orders/               # Financial reporting & historical logs
+│   │   ├── qr/                   # Table QR Code generation tool
+│   │   ├── tables/               # Seating & Tables layout editor
+│   │   └── page.tsx              # Admin Portal landing page (Client Component)
+│   ├── api/                      # Serverless API routes
+│   │   ├── alerts/               # Staff Help Alarm creation & resolution endpoints
+│   │   ├── auth/                 # NextAuth catch-all API endpoints
+│   │   ├── menu/                 # Menu data management APIs
+│   │   ├── orders/               # Customer checkout and ticket management APIs
+│   │   ├── qr/                   # Base64 QR code image generator
+│   │   ├── sessions/             # Guest Session lifecycle handlers
+│   │   └── tables/               # Restaurant table configurations
+│   ├── kds/                      # Dedicated Kitchen Display System (KDS)
+│   │   ├── ActionButtons.tsx     # Contextual task buttons (Accept, Ready, Complete)
+│   │   ├── EmptyState.tsx        # Dashboard screen when there are no orders
+│   │   ├── KDSHeader.tsx         # Live clock, stats banner & exit control
+│   │   ├── KitchenStats.tsx      # Active tickets counter dashboard
+│   │   ├── OrderCard.tsx         # Active ticket cards with duration timers
+│   │   ├── OrderColumn.tsx       # Kanban columns (New / Preparing / Ready)
+│   │   ├── OrderItems.tsx        # Interactive checklist for chef check-offs
+│   │   ├── StatusBadge.tsx       # Urgency tags (Normal / Rush / VIP)
+│   │   └── page.tsx              # KDS controller, state, & BroadcastChannel listener
+│   ├── login/                    # Staff dashboard login page
+│   │   └── page.tsx              # Glassmorphic Login portal with validation
+│   ├── r/                        # Dynamic QR Scan Redirect Router
+│   │   └── [restaurant]/         # Parsed scan paths
+│   │       └── table/            
+│   │           └── [table]/
+│   │               └── page.tsx  # Maps scans to persistent query params on `/`
+│   ├── globals.css               # Global Tailwind CSS configurations
+│   ├── layout.tsx                # HTML wrapper wrapped in SessionProvider
+│   └── page.tsx                  # Customer menu, cart & checkout interface
+├── context/                      # Global State Management
+│   └── CartContext.tsx           # Customer cart context (items, totals, priority)
+├── data/                         # Static Fallback Assets
+│   └── menu.ts                   # Static mock dishes definitions
+├── lib/                          # Global Configurations & Utilities
+│   └── db.ts                     # Prisma Client singleton
+├── prisma/                       # Database Configurations
+│   ├── schema.prisma             # PostgreSQL schema (MenuItem, Order, User, etc.)
+│   └── seed.ts                   # User credentials seed script (Admin & Kitchen)
+├── public/                       # Static Public Assets (SVGs, icons)
+├── auth.ts                       # NextAuth initialization & Credentials provider
+├── auth.config.ts                # NextAuth configurations (Edge-compatible callbacks)
+├── middleware.ts                 # Edge-runtime route protector middleware
+├── eslint.config.mjs             # ESLint config resolving Flat Config extends
+├── package.json                  # Node packages and project scripts
+└── tsconfig.json                 # TypeScript compiler options
 ```
 
 ---
